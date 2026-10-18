@@ -1,0 +1,9 @@
+[package]
+name = "mm8bdm-discord-rpc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bstr = "1.13.1"
+discord-rich-presence = "1.1.0"
+regex = "1.13.1"
