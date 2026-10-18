@@ -1,5 +1,5 @@
 use bstr::{ByteSlice, io::BufReadExt};
-use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
+use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
 use std::io::{self};
 
 const CLIENT_ID: &str = "1561172546756280430";
@@ -15,6 +15,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("[RPC]: {e:?} - {e:#}");
         }
     }
+
+    let payload = activity::Activity::new().details("Singleplayer");
+    let _ = client.set_activity(payload);
 
     /*
      * Zandronum logs capture
