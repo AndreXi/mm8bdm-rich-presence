@@ -6,4 +6,5 @@ edition = "2024"
 [dependencies]
 bstr = "1.13.1"
 discord-rich-presence = "1.1.0"
+lazy-regex = "3.6.2"
 regex = "1.13.1"
