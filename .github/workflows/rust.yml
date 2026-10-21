@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-24.04-arm
+            targets: aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - name: macos
+            os: macos-latest
+            targets: aarch64-apple-darwin x86_64-apple-darwin
+            archive: tar.gz
+          - name: windows
+            os: windows-latest
+            targets: x86_64-pc-windows-msvc
+            archive: zip
+            ext: .exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+
+      - name: Install Linux x86_64 cross linker
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-x86-64-linux-gnu
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.name }}-cargo-
+
+      - name: Build
+        shell: bash
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: x86_64-linux-gnu-gcc
+        run: |
+          set -euo pipefail
+          for target in ${{ matrix.targets }}; do
+            echo "::group::Building ${target}"
+            cargo build --release --locked --target "${target}"
+            echo "::endgroup::"
+          done
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          BIN="mm8bdm-rich-presence"
+          EXT="${{ matrix.ext }}"
+          mkdir -p release
+
+          for target in ${{ matrix.targets }}; do
+            ARCHIVE_NAME="${BIN}-${VERSION}-${target}"
+            BIN_PATH="target/${target}/release/${BIN}${EXT}"
+            STAGE="dist/${target}"
+
+            mkdir -p "${STAGE}"
+            cp "${BIN_PATH}" "${STAGE}/${BIN}${EXT}"
+
+            if [ "${{ matrix.archive }}" = "zip" ]; then
+              7z a -tzip "release/${ARCHIVE_NAME}.zip" "./${STAGE}/${BIN}${EXT}"
+            else
+              tar -czf "release/${ARCHIVE_NAME}.tar.gz" -C "${STAGE}" "${BIN}${EXT}"
+            fi
+          done
+
+          ls -la release/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: release/
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: artifacts/*
+          generate_release_notes: false
+          fail_on_unmatched_files: true
