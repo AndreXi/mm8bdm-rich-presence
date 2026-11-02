@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 bstr = "1.13.1"
+byteorder = "1.5.0"
 discord-rich-presence = "1.1.0"
+huffman_zandronum = "0.1.0"
 lazy-regex = "3.6.2"
-regex = "1.13.1"
+rustrict = "0.7.39"
