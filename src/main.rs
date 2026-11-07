@@ -81,7 +81,6 @@ impl App {
             GameEvent::MultiplayerStarted(address) => {
                 self.session = Session::Multiplayer { address, map: None };
             }
-            GameEvent::MultiplayerConnected => {}
         }
     }
 
