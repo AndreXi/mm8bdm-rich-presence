@@ -44,7 +44,7 @@ impl DiscordRichActivityClient {
 
         if let Some((ip, port)) = parse_server_address(server_address) {
             let join_url = format!(
-                "{JOIN_URL_HOST}?project=JoinServer&ip={}&port={port}",
+                "{JOIN_URL_HOST}?project=JoinServer&ip={}&port={port}&source=drpc",
                 encode_query_component(ip),
             );
             payload = payload.buttons(vec![activity::Button::new("Join Server", join_url)]);
