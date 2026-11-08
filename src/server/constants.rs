@@ -1,5 +1,5 @@
-pub(crate) const MAX_NETWORK_BUFFER_SIZE: usize = 1 << 12;
-pub(crate) const MAX_CODEC_OUTPUT_SIZE: usize = 1 << 12;
+pub(crate) const MAX_NETWORK_BUFFER_SIZE: usize = 1 << 10;
+pub(crate) const MAX_CODEC_OUTPUT_SIZE: usize = 1 << 10;
 
 pub(super) const LAUNCHER_CHALLENGE: u32 = 199;
 

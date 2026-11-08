@@ -1,16 +1,19 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use bstr::ByteSlice;
 use discord_rich_presence::{
     DiscordIpc, DiscordIpcClient,
-    activity::{Activity, ActivityType, Button},
+    activity::{Activity, ActivityType, Button, Timestamps},
     error::Error,
 };
 
-use crate::server::ServerResponseData;
+use crate::server::{GameMode, ServerResponseData};
 
 const JOIN_URL_HOST: &str = "https://trillster.dev/";
 
 pub struct DiscordRichActivityClient {
     client: DiscordIpcClient,
+    started_at: i64,
 }
 
 impl DiscordRichActivityClient {
@@ -18,7 +21,15 @@ impl DiscordRichActivityClient {
         let mut client = DiscordIpcClient::new(client_id);
         client.connect()?;
 
-        Ok(Self { client })
+        let started_at = i64::try_from(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis(),
+        )
+        .unwrap_or(0);
+
+        Ok(Self { client, started_at })
     }
 
     pub fn update_singleplayer(&mut self, map: &str) -> Result<(), Error> {
@@ -36,7 +47,7 @@ impl DiscordRichActivityClient {
     ) -> Result<(), Error> {
         let game_mode_str = match server_info.game_mode.as_ref() {
             Some(v) => v.mode.as_str(),
-            None => "",
+            None => GameMode::Unknown.as_str(),
         };
 
         let map: &str = match server_info.map_name.as_ref() {
@@ -55,6 +66,10 @@ impl DiscordRichActivityClient {
             .details(details)
             .state(map)
             .activity_type(ActivityType::Playing);
+
+        if self.started_at > 0 {
+            payload = payload.timestamps(Timestamps::new().start(self.started_at));
+        }
 
         if let Some((ip, port)) = parse_server_address(server_address) {
             let join_url = format!(
