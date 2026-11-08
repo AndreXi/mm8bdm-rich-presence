@@ -3,7 +3,7 @@ use std::{io, sync::mpsc, thread};
 
 use crate::AppEvent;
 
-pub fn spawn_log_reader(events: mpsc::Sender<AppEvent>) {
+pub fn spawn_log_reader_worker(events: mpsc::Sender<AppEvent>) {
     thread::spawn(move || {
         let stdin = io::stdin();
 

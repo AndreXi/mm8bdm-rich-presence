@@ -1,24 +1,22 @@
 mod discord_rich_activity;
 mod log_line_parser;
-mod log_reader;
+mod log_reader_worker;
 mod map_name;
-mod read_zstr;
-mod server_info;
-mod server_requester;
+mod server;
+mod server_worker;
 
 use bstr::ByteSlice;
-use std::{
-    error::Error,
-    sync::mpsc::{self, Receiver, SyncSender, TrySendError},
-};
+use std::sync::mpsc::{self, Receiver, SyncSender, TrySendError};
+
+use discord_rich_presence::error::Error as DiscordIPCError;
 
 use crate::{
     discord_rich_activity::DiscordRichActivityClient,
     log_line_parser::{GameEvent, log_line_parser},
-    log_reader::spawn_log_reader,
+    log_reader_worker::spawn_log_reader_worker,
     map_name::build_map_name,
-    server_info::{ServerInfo, ServerInfoError},
-    server_requester::spawn_server_requester,
+    server::ServerResponseData,
+    server_worker::spawn_server_worker,
 };
 
 const CLIENT_ID: &str = "1561172546756280430";
@@ -28,7 +26,7 @@ pub enum AppEvent {
     LogEnded,
     ServerInfoUpdated {
         address: String,
-        result: Result<ServerInfo, ServerInfoError>,
+        result: ServerResponseData,
     },
 }
 
@@ -106,7 +104,7 @@ impl App {
         }
     }
 
-    fn handle_server_info(&mut self, address: String, result: Result<ServerInfo, ServerInfoError>) {
+    fn handle_server_info(&mut self, address: String, result: ServerResponseData) {
         let map = match &self.session {
             Session::Multiplayer {
                 address: current_address,
@@ -115,17 +113,12 @@ impl App {
             _ => return,
         };
 
-        match result {
-            Ok(info) => {
-                self.connect_discord();
-                let update = self
-                    .discord
-                    .as_mut()
-                    .map(|client| client.update_multiplayer(&map, &address, &info));
-                self.handle_activity_result(update);
-            }
-            Err(error) => log_server_info_error(error),
-        }
+        self.connect_discord();
+        let update = self
+            .discord
+            .as_mut()
+            .map(|client| client.update_multiplayer(&map, &address, &result));
+        self.handle_activity_result(update);
     }
 
     fn connect_discord(&mut self) {
@@ -135,7 +128,7 @@ impl App {
 
         match DiscordRichActivityClient::connect(CLIENT_ID) {
             Ok(client) => self.discord = Some(client),
-            Err(error) => eprintln!("[RPC]: connect failed: {error}"),
+            Err(error) => eprintln!("[DRPC]: connect failed: {error}"),
         }
     }
 
@@ -147,9 +140,9 @@ impl App {
         self.handle_activity_result(update);
     }
 
-    fn handle_activity_result(&mut self, result: Option<Result<(), Box<dyn Error>>>) {
+    fn handle_activity_result(&mut self, result: Option<Result<(), DiscordIPCError>>) {
         if let Some(Err(error)) = result {
-            eprintln!("[RPC]: activity update failed: {error}");
+            eprintln!("[DRPC]: activity update failed: {error}");
             self.discord = None;
         }
     }
@@ -158,7 +151,7 @@ impl App {
         let address = match address.to_str() {
             Ok(address) => address.to_owned(),
             Err(error) => {
-                eprintln!("[RPC]: invalid UTF-8 in server address: {error}");
+                eprintln!("[DRPC]: invalid UTF-8 in server address: {error}");
                 return;
             }
         };
@@ -171,20 +164,6 @@ impl App {
             Err(TrySendError::Disconnected(_)) => {
                 eprintln!("[RPC]: query worker has stopped");
             }
-        }
-    }
-}
-
-fn log_server_info_error(error: ServerInfoError) {
-    match error {
-        ServerInfoError::IgnoredRequestError => {
-            eprintln!("[RPC]: server ignored the info request");
-        }
-        ServerInfoError::RejectedRequestError => {
-            eprintln!("[RPC]: server rejected the info request");
-        }
-        ServerInfoError::IoError(error) => {
-            eprintln!("[RPC]: failed to query server: {error}");
         }
     }
 }
@@ -202,8 +181,8 @@ fn run_event_loop(events: Receiver<AppEvent>, mut app: App) {
 fn main() {
     let (events_tx, events_rx) = mpsc::channel::<AppEvent>();
 
-    spawn_log_reader(events_tx.clone());
-    let server_queries = spawn_server_requester(events_tx);
+    spawn_log_reader_worker(events_tx.clone());
+    let server_queries = spawn_server_worker(events_tx);
 
     run_event_loop(events_rx, App::new(server_queries));
 }

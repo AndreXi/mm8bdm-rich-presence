@@ -1,14 +1,14 @@
-use std::io::{self, Cursor};
+use std::io::{self, Cursor, Result};
 
 pub trait ReadZStr {
-    fn read_zstr(&mut self) -> io::Result<Vec<u8>>;
+    fn read_zstr(&mut self) -> Result<Vec<u8>>;
 }
 
 impl<T> ReadZStr for Cursor<T>
 where
     T: AsRef<[u8]>,
 {
-    fn read_zstr(&mut self) -> io::Result<Vec<u8>> {
+    fn read_zstr(&mut self) -> Result<Vec<u8>> {
         let remaining = &self.get_ref().as_ref()[self.position() as usize..];
 
         let len = remaining
