@@ -1,3 +1,4 @@
+use bstr::ByteSlice;
 use discord_rich_presence::{
     DiscordIpc, DiscordIpcClient,
     activity::{Activity, ActivityType, Button},
@@ -36,6 +37,11 @@ impl DiscordRichActivityClient {
         let game_mode_str = match server_info.game_mode.as_ref() {
             Some(v) => v.mode.as_str(),
             None => "",
+        };
+
+        let map: &str = match server_info.map_name.as_ref() {
+            Some(value) => &value.to_str_lossy(),
+            None => "UNKNOWN",
         };
 
         let details = format!(
