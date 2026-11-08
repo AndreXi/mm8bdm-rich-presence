@@ -1,7 +1,10 @@
-use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
-use std::error::Error;
+use discord_rich_presence::{
+    DiscordIpc, DiscordIpcClient,
+    activity::{Activity, ActivityType, Button},
+    error::Error,
+};
 
-use crate::server_info::ServerInfo;
+use crate::server::ServerResponseData;
 
 const JOIN_URL_HOST: &str = "https://trillster.dev/";
 
@@ -10,15 +13,15 @@ pub struct DiscordRichActivityClient {
 }
 
 impl DiscordRichActivityClient {
-    pub fn connect(client_id: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn connect(client_id: &str) -> Result<Self, Error> {
         let mut client = DiscordIpcClient::new(client_id);
         client.connect()?;
 
         Ok(Self { client })
     }
 
-    pub fn update_singleplayer(&mut self, map: &str) -> Result<(), Box<dyn Error>> {
-        let payload = activity::Activity::new().details("Singleplayer").state(map);
+    pub fn update_singleplayer(&mut self, map: &str) -> Result<(), Error> {
+        let payload = Activity::new().details("Singleplayer").state(map);
 
         self.client.set_activity(payload)?;
         Ok(())
@@ -28,26 +31,31 @@ impl DiscordRichActivityClient {
         &mut self,
         map: &str,
         server_address: &str,
-        server_info: &ServerInfo,
-    ) -> Result<(), Box<dyn Error>> {
+        server_info: &ServerResponseData,
+    ) -> Result<(), Error> {
+        let game_mode_str = match server_info.game_mode.as_ref() {
+            Some(v) => v.mode.as_str(),
+            None => "",
+        };
+
         let details = format!(
             "{} - {}/{} players",
-            server_info.game_mode.as_str(),
-            server_info.players,
-            server_info.max_players,
+            game_mode_str,
+            server_info.num_players.unwrap_or(0),
+            server_info.max_players.unwrap_or(0),
         );
 
-        let mut payload = activity::Activity::new()
+        let mut payload = Activity::new()
             .details(details)
             .state(map)
-            .activity_type(activity::ActivityType::Playing);
+            .activity_type(ActivityType::Playing);
 
         if let Some((ip, port)) = parse_server_address(server_address) {
             let join_url = format!(
                 "{JOIN_URL_HOST}?project=JoinServer&ip={}&port={port}&source=drpc",
                 encode_query_component(ip),
             );
-            payload = payload.buttons(vec![activity::Button::new("Join Server", join_url)]);
+            payload = payload.buttons(vec![Button::new("Join game", join_url)]);
         }
 
         self.client.set_activity(payload)?;
