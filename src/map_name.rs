@@ -190,7 +190,7 @@ const ORIGINAL_MAPS: [&[u8]; 187] = [
     b"MMDOM05",
 ];
 
-pub fn build_map_name(code: &[u8], _name: &[u8]) -> String {
+pub fn build_map_name(code: &[u8]) -> String {
     let code = String::from_utf8_lossy(code);
 
     let censored_code = censor(&code).0;
@@ -219,6 +219,6 @@ mod tests {
 
     #[test]
     fn censors_custom_map_code_and_hides_its_name() {
-        assert_eq!(build_map_name(b"FCK01", b""), "F**01");
+        assert_eq!(build_map_name(b"FCK01"), "F**01");
     }
 }

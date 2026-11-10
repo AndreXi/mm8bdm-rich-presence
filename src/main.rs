@@ -32,10 +32,7 @@ pub enum AppEvent {
 
 enum Session {
     Singleplayer,
-    Multiplayer {
-        address: Vec<u8>,
-        map: Option<String>,
-    },
+    Multiplayer(Vec<u8>),
 }
 
 struct App {
@@ -75,26 +72,23 @@ impl App {
 
     fn handle_game_event(&mut self, event: GameEvent) {
         match event {
-            GameEvent::MapChange { code, name } => self.handle_map_change(code, name),
+            GameEvent::MapChange { code } => self.handle_map_change(code),
             GameEvent::MultiplayerStarted(address) => {
-                self.session = Session::Multiplayer { address, map: None };
+                self.session = Session::Multiplayer(address);
+            }
+            GameEvent::MultiplayerConnected => {
+                self.handle_server_connected();
             }
         }
     }
 
-    fn handle_map_change(&mut self, code: Vec<u8>, name: Vec<u8>) {
-        let map = build_map_name(&code, &name);
+    fn handle_map_change(&mut self, code: Vec<u8>) {
+        let map = build_map_name(&code);
         self.connect_discord();
 
-        let server_address = match &mut self.session {
+        let server_address = match &self.session {
             Session::Singleplayer => None,
-            Session::Multiplayer {
-                address,
-                map: current_map,
-            } => {
-                *current_map = Some(map.clone());
-                Some(address.clone())
-            }
+            Session::Multiplayer(address) => Some(address),
         };
 
         if let Some(address) = server_address {
@@ -105,19 +99,11 @@ impl App {
     }
 
     fn handle_server_info(&mut self, address: String, result: ServerResponseData) {
-        let map = match &self.session {
-            Session::Multiplayer {
-                address: current_address,
-                map: Some(map),
-            } if current_address.to_str().ok() == Some(address.as_str()) => map.clone(),
-            _ => return,
-        };
-
         self.connect_discord();
         let update = self
             .discord
             .as_mut()
-            .map(|client| client.update_multiplayer(&map, &address, &result));
+            .map(|client| client.update_multiplayer(&address, &result));
         self.handle_activity_result(update);
     }
 
@@ -147,6 +133,12 @@ impl App {
         }
     }
 
+    fn handle_server_connected(&mut self) {
+        if let Session::Multiplayer(address) = &self.session {
+            self.request_server_info(&address);
+        }
+    }
+
     fn request_server_info(&self, address: &[u8]) {
         let address = match address.to_str() {
             Ok(address) => address.to_owned(),
@@ -159,10 +151,10 @@ impl App {
         match self.server_queries.try_send(address) {
             Ok(()) => {}
             Err(TrySendError::Full(_)) => {
-                eprintln!("[RPC]: query queue is full; skipping request");
+                eprintln!("[DRPC]: query queue is full; skipping request");
             }
             Err(TrySendError::Disconnected(_)) => {
-                eprintln!("[RPC]: query worker has stopped");
+                eprintln!("[DRPC]: query worker has stopped");
             }
         }
     }

@@ -1,13 +1,15 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use bstr::ByteSlice;
 use discord_rich_presence::{
     DiscordIpc, DiscordIpcClient,
     activity::{Activity, ActivityType, Button, Timestamps},
     error::Error,
 };
 
-use crate::server::{GameMode, ServerResponseData};
+use crate::{
+    map_name::build_map_name,
+    server::{GameMode, ServerResponseData},
+};
 
 const JOIN_URL_HOST: &str = "https://trillster.dev/";
 
@@ -41,7 +43,6 @@ impl DiscordRichActivityClient {
 
     pub fn update_multiplayer(
         &mut self,
-        map: &str,
         server_address: &str,
         server_info: &ServerResponseData,
     ) -> Result<(), Error> {
@@ -51,7 +52,7 @@ impl DiscordRichActivityClient {
         };
 
         let map: &str = match server_info.map_name.as_ref() {
-            Some(value) => &value.to_str_lossy(),
+            Some(value) => &build_map_name(&value),
             None => "UNKNOWN",
         };
 
