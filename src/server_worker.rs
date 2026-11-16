@@ -11,10 +11,12 @@ use crate::{
     },
 };
 
-const SERVER_INFO_REQUEST_INTERVAL: Duration = Duration::from_secs(60);
+const TAG: &str = "[DRPC]:server_worker:";
 
 pub fn spawn_server_worker(events: mpsc::Sender<AppEvent>) -> mpsc::SyncSender<String> {
     let (query_tx, query_rx) = mpsc::sync_channel::<String>(1);
+
+    let mut timeout_duration: Duration = Duration::from_secs(60);
 
     thread::spawn(move || {
         let Ok(mut address) = query_rx.recv() else {
@@ -31,28 +33,35 @@ pub fn spawn_server_worker(events: mpsc::Sender<AppEvent>) -> mpsc::SyncSender<S
             match result {
                 Err(error) => match error {
                     ServerRequestError::CannotBindSocket => {
-                        println!("[DRPC]:server_worker: Unable to bind socket / IO Error.");
+                        println!("{TAG} Unable to bind socket / IO Error.");
                         break;
                     }
                     ServerRequestError::BannedRequestError => {
-                        println!("[DRPC]:server_worker: You are banned from the server.");
+                        println!("{TAG} You are banned from the server.");
                         break;
                     }
                     ServerRequestError::CodecBufferLimitReached => {
-                        println!("[DRPC]:server_worker: Received packet was too big.");
+                        println!("{TAG} Received packet was too big.");
                         break;
                     }
                     ServerRequestError::UnknownRequestError => {
-                        println!("[DRPC]:server_worker: Unknown server response.");
+                        println!("{TAG} Unknown server response.");
                         break;
                     }
                     ServerRequestError::IgnoredRequestError => {
-                        // TODO: It should increment the polling rate duration and stop after some limits
-                        println!("[DRPC]:server_worker: Server ignored the request.");
+                        if timeout_duration >= Duration::from_mins(5) {
+                            eprintln!("{TAG} Server ignored too many times!");
+                            break;
+                        }
+                        timeout_duration += Duration::from_secs(60);
+                        println!(
+                            "{TAG} Server ignored the request. next retry in: {:#?}",
+                            timeout_duration
+                        );
                     }
                 },
                 Ok(None) => {
-                    println!("[DRPC]:server_worker: Server response parsed twice!");
+                    println!("{TAG} Server response parsed twice!");
                     debug_assert!(false);
                     break;
                 }
@@ -69,13 +78,13 @@ pub fn spawn_server_worker(events: mpsc::Sender<AppEvent>) -> mpsc::SyncSender<S
                 }
             }
 
-            let next_request_at = request_started + SERVER_INFO_REQUEST_INTERVAL;
+            let next_request_at = request_started + timeout_duration;
             if !wait_for_next_request(&query_rx, next_request_at, &mut address) {
                 break;
             }
         }
 
-        println!("[DRPC]:server_worker: exit");
+        println!("{TAG} exit");
     });
 
     query_tx
