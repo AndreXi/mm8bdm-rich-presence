@@ -193,9 +193,8 @@ const ORIGINAL_MAPS: [&[u8]; 187] = [
 pub fn build_map_name(code: &[u8]) -> String {
     let code = String::from_utf8_lossy(code);
 
-    let censored_code = censor(&code).0;
-    if !is_original_map(&code) {
-        format!("{censored_code}")
+    if !is_original_map(&code) && is_censor_needed(&code) {
+        String::from("UNKNOWN")
     } else {
         format!("{code}")
     }
@@ -207,10 +206,12 @@ fn is_original_map(code: &str) -> bool {
         .any(|original_code| original_code.eq_ignore_ascii_case(code.as_bytes()))
 }
 
-fn censor(text: &str) -> (String, Type) {
-    let mut censor = Censor::from_str(text);
-    censor.with_censor_replacement('*');
-    censor.censor_and_analyze()
+fn is_censor_needed(text: &str) -> bool {
+    let flags = Type::MODERATE_OR_HIGHER;
+    Censor::from_str(text)
+        .with_censor_threshold(flags)
+        .analyze()
+        .is(flags)
 }
 
 #[cfg(test)]
@@ -219,6 +220,17 @@ mod tests {
 
     #[test]
     fn censors_custom_map_code_and_hides_its_name() {
-        assert_eq!(build_map_name(b"FCK01"), "F**01");
+        assert_eq!(build_map_name(b"FCK01"), "UNKNOWN");
+        assert_eq!(build_map_name(b"SEX01"), "UNKNOWN");
+        assert_eq!(build_map_name(b"SHIT01"), "UNKNOWN");
+    }
+
+    #[test]
+    fn custom_non_very_offensive_map_names_are_shown() {
+        assert_eq!(build_map_name(b"EGG01"), "EGG01");
+        assert_eq!(build_map_name(b"HELL01"), "HELL01");
+        assert_eq!(build_map_name(b"DAMN01"), "DAMN01");
+        assert_eq!(build_map_name(b"CRAPYARD"), "CRAPYARD");
+        assert_eq!(build_map_name(b"ASSAULT"), "ASSAULT");
     }
 }
