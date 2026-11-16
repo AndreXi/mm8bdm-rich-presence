@@ -21,6 +21,8 @@ use crate::{
 
 const CLIENT_ID: &str = "1561172546756280430";
 
+const TAG: &str = "[DRPC]:main:";
+
 pub enum AppEvent {
     LogLine(Vec<u8>),
     LogEnded,
@@ -67,7 +69,7 @@ impl App {
             self.handle_game_event(event);
         }
 
-        println!("HI! -> {}", line.as_bstr());
+        println!("{}", line.as_bstr());
     }
 
     fn handle_game_event(&mut self, event: GameEvent) {
@@ -114,7 +116,7 @@ impl App {
 
         match DiscordRichActivityClient::connect(CLIENT_ID) {
             Ok(client) => self.discord = Some(client),
-            Err(error) => eprintln!("[DRPC]: connect failed: {error}"),
+            Err(error) => eprintln!("{TAG} connect failed: {error}"),
         }
     }
 
@@ -128,7 +130,7 @@ impl App {
 
     fn handle_activity_result(&mut self, result: Option<Result<(), DiscordIPCError>>) {
         if let Some(Err(error)) = result {
-            eprintln!("[DRPC]: activity update failed: {error}");
+            eprintln!("{TAG} activity update failed: {error}");
             self.discord = None;
         }
     }
@@ -143,7 +145,7 @@ impl App {
         let address = match address.to_str() {
             Ok(address) => address.to_owned(),
             Err(error) => {
-                eprintln!("[DRPC]: invalid UTF-8 in server address: {error}");
+                eprintln!("{TAG} invalid UTF-8 in server address: {error}");
                 return;
             }
         };
@@ -151,10 +153,10 @@ impl App {
         match self.server_queries.try_send(address) {
             Ok(()) => {}
             Err(TrySendError::Full(_)) => {
-                eprintln!("[DRPC]: query queue is full; skipping request");
+                eprintln!("{TAG} query queue is full; skipping request");
             }
             Err(TrySendError::Disconnected(_)) => {
-                eprintln!("[DRPC]: query worker has stopped");
+                eprintln!("{TAG} query worker has stopped");
             }
         }
     }
@@ -167,7 +169,7 @@ fn run_event_loop(events: Receiver<AppEvent>, mut app: App) {
         }
     }
 
-    println!("BYE BYE");
+    println!("{TAG} exit");
 }
 
 fn main() {

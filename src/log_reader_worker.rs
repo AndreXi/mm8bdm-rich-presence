@@ -3,6 +3,8 @@ use std::{io, sync::mpsc, thread};
 
 use crate::AppEvent;
 
+const TAG: &str = "[DRPC]:log_reader:";
+
 pub fn spawn_log_reader_worker(events: mpsc::Sender<AppEvent>) {
     thread::spawn(move || {
         let stdin = io::stdin();
@@ -15,7 +17,7 @@ pub fn spawn_log_reader_worker(events: mpsc::Sender<AppEvent>) {
                     }
                 }
                 Err(error) => {
-                    eprintln!("Failed to read log input: {error}");
+                    eprintln!("{TAG} Failed to read log input: {error}");
                     break;
                 }
             }
